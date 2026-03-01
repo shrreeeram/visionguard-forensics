@@ -1,26 +1,47 @@
+# ==========================
 # Python
+# ==========================
 venv/
+backend/venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.log
 
-# Database
-database.db
+# ==========================
+# Database Files
+# ==========================
+*.db
+*.sqlite3
 
-# Environment
+# ==========================
+# Environment Variables
+# ==========================
 .env
+backend/.env
 
-# Uploads
+# ==========================
+# Model Weights (Very Important)
+# ==========================
+*.pt
+
+# ==========================
+# Uploads / Runtime Files
+# ==========================
 uploads/
+backend/uploads/
 
-# Node
+# ==========================
+# Node / Frontend
+# ==========================
 node_modules/
 dist/
+frontend/node_modules/
+frontend/dist/
 
-# OS
+# ==========================
+# OS / System
+# ==========================
 .DS_Store
 Thumbs.db
-
-# Docker
-*.log
