@@ -1,12 +1,18 @@
+import torch
+torch.set_grad_enabled(False)
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from ultralytics import YOLO
+from fastapi.staticfiles import StaticFiles
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from transformers import AutoImageProcessor, AutoModelForImageClassification
+from PIL import Image
 import sqlite3
+import torch
 import os
 import uuid
 import json
@@ -22,7 +28,7 @@ ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 DATABASE = os.getenv("DATABASE", "database.db")
 
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+MAX_FILE_SIZE = 5 * 1024 * 1024
 ALLOWED_EXTENSIONS = ["jpg", "jpeg", "png"]
 
 if not SECRET_KEY:
@@ -35,11 +41,15 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], # In Production, replace "*" with ["http://your-frontend-domain.com"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve uploaded images statically
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ==============================
 # DATABASE
@@ -65,11 +75,18 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL,
             filename TEXT,
-            total_objects INTEGER,
-            detections TEXT,
-            timestamp TEXT
+            image_type TEXT,
+            authenticity_confidence REAL,
+            timestamp TEXT,
+            image_path TEXT
         )
     """)
+
+    # Simple migration: Add image_path if it doesn't exist
+    try:
+        cursor.execute("ALTER TABLE detections ADD COLUMN image_path TEXT")
+    except sqlite3.OperationalError:
+        pass # Already exists
 
     conn.commit()
     conn.close()
@@ -79,10 +96,16 @@ def startup():
     init_db()
 
 # ==============================
-# LOAD MODEL
+# LOAD AI MODEL
 # ==============================
 
-model = YOLO("yolov8s.pt")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+processor = AutoImageProcessor.from_pretrained("umm-maybe/AI-image-detector")
+model = AutoModelForImageClassification.from_pretrained("umm-maybe/AI-image-detector")
+
+model.to(device)
+model.eval()
 
 # ==============================
 # AUTH HELPERS
@@ -128,16 +151,34 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Token expired or invalid")
 
 # ==============================
+# AUTHENTICITY DETECTION
+# ==============================
+
+def detect_authenticity(image_path: str):
+
+    image = Image.open(image_path).convert("RGB")
+    inputs = processor(images=image, return_tensors="pt").to(device)
+
+    with torch.no_grad():
+        outputs = model(**inputs)
+        logits = outputs.logits
+        probabilities = torch.softmax(logits, dim=1)
+
+    confidence, predicted = torch.max(probabilities, dim=1)
+    label = model.config.id2label[predicted.item()]
+
+    return {
+        "image_type": label,
+        "authenticity_confidence": round(confidence.item(), 2)
+    }
+
+# ==============================
 # ROUTES
 # ==============================
 
 @app.get("/")
 def root():
-    return {"message": "AI Object Detection Backend Running Securely"}
-
-# ------------------------------
-# SIGNUP
-# ------------------------------
+    return {"message": "AI Generated vs Real Image Detection Backend Running"}
 
 @app.post("/signup")
 def signup(username: str = Form(...), password: str = Form(...)):
@@ -154,10 +195,6 @@ def signup(username: str = Form(...), password: str = Form(...)):
 
     return {"message": "User created successfully"}
 
-# ------------------------------
-# LOGIN
-# ------------------------------
-
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = get_user(form_data.username)
@@ -169,19 +206,11 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
     return {"access_token": access_token, "token_type": "bearer"}
 
-# ------------------------------
-# DETECT (PROTECTED)
-# ------------------------------
-
 @app.post("/detect")
-async def detect_product(
+async def detect_image(
     file: UploadFile = File(...),
-    confidence: float = Form(0.25),
     current_user: str = Depends(get_current_user),
 ):
-
-    if confidence < 0 or confidence > 1:
-        raise HTTPException(status_code=400, detail="Confidence must be between 0 and 1")
 
     extension = file.filename.split(".")[-1].lower()
     if extension not in ALLOWED_EXTENSIONS:
@@ -190,7 +219,7 @@ async def detect_product(
     contents = await file.read()
 
     if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="File too large (Max 5MB)")
+        raise HTTPException(status_code=400, detail="File too large")
 
     os.makedirs("uploads", exist_ok=True)
 
@@ -201,51 +230,43 @@ async def detect_product(
         buffer.write(contents)
 
     try:
-        results = model(file_path, conf=confidence)
+        result = detect_authenticity(file_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Detection failed: {str(e)}")
 
-    detected_items = []
-
-    for r in results:
-        if r.boxes is not None:
-            for box in r.boxes:
-                class_id = int(box.cls[0])
-                class_name = model.names[class_id]
-                conf_score = float(box.conf[0])
-
-                detected_items.append({
-                    "object": class_name,
-                    "confidence": round(conf_score, 2)
-                })
-
     record = {
         "filename": file.filename,
-        "total_objects": len(detected_items),
-        "detections": detected_items,
+        "image_type": result["image_type"],
+        "authenticity_confidence": result["authenticity_confidence"],
         "timestamp": datetime.utcnow().isoformat(),
+        "image_path": unique_name
     }
 
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO detections (username, filename, total_objects, detections, timestamp)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO detections (
+            username,
+            filename,
+            image_type,
+            authenticity_confidence,
+            timestamp,
+            image_path
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
     """, (
         current_user,
         record["filename"],
-        record["total_objects"],
-        json.dumps(record["detections"]),
-        record["timestamp"]
+        record["image_type"],
+        record["authenticity_confidence"],
+        record["timestamp"],
+        record["image_path"]
     ))
+
     conn.commit()
     conn.close()
 
     return record
-
-# ------------------------------
-# HISTORY
-# ------------------------------
 
 @app.get("/history")
 def get_history(current_user: str = Depends(get_current_user)):
@@ -254,7 +275,7 @@ def get_history(current_user: str = Depends(get_current_user)):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT filename, total_objects, detections, timestamp
+        SELECT filename, image_type, authenticity_confidence, timestamp, image_path
         FROM detections
         WHERE username=?
         ORDER BY id DESC
@@ -268,9 +289,10 @@ def get_history(current_user: str = Depends(get_current_user)):
     for row in rows:
         history.append({
             "filename": row[0],
-            "total_objects": row[1],
-            "detections": json.loads(row[2]),
-            "timestamp": row[3]
+            "image_type": row[1],
+            "authenticity_confidence": row[2],
+            "timestamp": row[3],
+            "image_path": row[4]
         })
 
     return history

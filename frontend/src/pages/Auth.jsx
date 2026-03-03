@@ -100,14 +100,14 @@ export default function Auth() {
               </div>
 
               <h1 className="text-4xl font-black text-white leading-tight mb-6">
-                Real-Time Intelligent <br />
-                <span className="text-indigo-200">Object Detection</span>
+                Real-Time <br />
+                <span className="text-indigo-200">AI Image Detection</span>
               </h1>
 
               <div className="space-y-6">
                 {[
                   { icon: Zap, text: 'Ultra-low latency inference engine' },
-                  { icon: Target, text: 'High-precision YOLOv8 analytics' },
+                  { icon: Shield, text: 'Advanced AI Artifact Analysis' },
                   { icon: Lock, text: 'Enterprise-grade session security' }
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-4 text-indigo-100">
@@ -124,7 +124,7 @@ export default function Auth() {
               <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-md border border-white/20">
                 <p className="text-[10px] font-black text-indigo-100 uppercase tracking-widest leading-loose">
                   System Status: <span className="text-emerald-300">Operational</span> <br />
-                  Core Version: <span className="text-white">v8.2.0-Production</span>
+                  Core Version: <span className="text-white">v8.2.0-STABLE</span>
                 </p>
               </div>
             </div>
@@ -156,8 +156,8 @@ export default function Auth() {
                       placeholder="Username"
                       disabled={isLoading}
                       className={`w-full pl-12 pr-4 py-4 rounded-2xl border outline-none transition-all font-bold text-sm ${theme === 'dark'
-                          ? 'bg-slate-950/50 border-slate-800 text-white focus:border-indigo-500/50 focus:bg-slate-950'
-                          : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-indigo-500 focus:bg-white'
+                        ? 'bg-slate-950/50 border-slate-800 text-white focus:border-indigo-500/50 focus:bg-slate-950'
+                        : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-indigo-500 focus:bg-white'
                         }`}
                     />
                   </div>
@@ -176,8 +176,8 @@ export default function Auth() {
                       placeholder="Password"
                       disabled={isLoading}
                       className={`w-full pl-12 pr-12 py-4 rounded-2xl border outline-none transition-all font-bold text-sm ${theme === 'dark'
-                          ? 'bg-slate-950/50 border-slate-800 text-white focus:border-indigo-500/50 focus:bg-slate-950'
-                          : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-indigo-500 focus:bg-white'
+                        ? 'bg-slate-950/50 border-slate-800 text-white focus:border-indigo-500/50 focus:bg-slate-950'
+                        : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-indigo-500 focus:bg-white'
                         }`}
                     />
                     <button

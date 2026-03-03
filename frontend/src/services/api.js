@@ -1,14 +1,14 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://aiobjectshree2026.southeastasia.azurecontainer.io',
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
   timeout: 15000,
 });
 
 // Request Interceptor: Attach Token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -22,7 +22,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('access_token');
+      localStorage.removeItem('token');
       localStorage.removeItem('username');
       window.location.href = '/auth';
     }

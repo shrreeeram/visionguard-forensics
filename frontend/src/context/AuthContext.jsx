@@ -4,23 +4,27 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(localStorage.getItem('username') || null);
-    const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('access_token'));
+    const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
 
     const logout = useCallback(() => {
-        localStorage.removeItem('access_token');
+        localStorage.removeItem('token');
         localStorage.removeItem('username');
         setUser(null);
         setIsAuthenticated(false);
-        window.location.href = '/auth';
+        // We will move the redirect logic to a central place or use navigate in components
     }, []);
 
-    // Inactivity Logout (5 Minutes)
+    // Inactivity Logout (30 Minutes)
     useEffect(() => {
         let timeout;
         const resetTimer = () => {
             if (timeout) clearTimeout(timeout);
             if (isAuthenticated) {
-                timeout = setTimeout(logout, 300000); // 5 minutes
+                timeout = setTimeout(() => {
+                    logout();
+                    alert('Session expired for security. Please login again.');
+                    window.location.href = '/auth';
+                }, 1800000); // 30 minutes (30 * 60 * 1000)
             }
         };
 
@@ -36,7 +40,7 @@ export const AuthProvider = ({ children }) => {
     }, [isAuthenticated, logout]);
 
     const login = (userData, token) => {
-        localStorage.setItem('access_token', token);
+        localStorage.setItem('token', token);
         localStorage.setItem('username', userData.username);
         setUser(userData.username);
         setIsAuthenticated(true);

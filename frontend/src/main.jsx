@@ -4,7 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Auth from './pages/Auth';
-import App from './App';
+import Dashboard from './pages/Dashboard';
 import './index.css';
 
 // Protected Route Wrapper
@@ -24,7 +24,7 @@ const Root = () => {
               path="/*"
               element={
                 <ProtectedRoute>
-                  <App />
+                  <Dashboard />
                 </ProtectedRoute>
               }
             />
